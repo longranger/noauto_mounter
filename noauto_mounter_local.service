@@ -1,0 +1,10 @@
+[Unit]
+Description=noauto mounter for local disks
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/noauto_mounter local
+
+[Install]
+WantedBy=local-fs.target

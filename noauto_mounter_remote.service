@@ -1,0 +1,11 @@
+[Unit]
+Description=noauto mounter for remote mounts
+After=network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/noauto_mounter remote
+
+[Install]
+WantedBy=multi-user.target

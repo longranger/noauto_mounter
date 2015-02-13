@@ -1,0 +1,16 @@
+sudo cp noauto_mounter /usr/local/bin
+sudo cp noauto_mounter_local.service /etc/systemd/system
+sudo systemctl reenable noauto_mounter_local.service
+sudo cp noauto_mounter_remote.service /etc/systemd/system
+sudo systemctl reenable noauto_mounter_remote.service
+echo
+echo
+echo
+echo "Add the following to root crontab:"
+echo "sudo crontab -e"
+echo "* * * * * /usr/local/bin/noauto_mounter"
+echo
+echo "And make sure cronie is running"
+echo "sudo systemctl start cronie"
+echo "sudo systemctl enable cronie"
+

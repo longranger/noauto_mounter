@@ -1,0 +1,87 @@
+#!/bin/bash
+
+function usage {
+        echo "$1" 1>&2
+        echo -e "\n" Usage: `basename $0` '[local|remote]' 1>&2
+        exit
+}
+
+# Verify argument
+if [[ $# -gt 1 ]] ; then
+	usage "Too many arguments specified."
+fi
+
+DO=$1
+
+case "$DO" in
+	"local")
+		;;
+	"remote")
+		;;
+	"")
+		DO="both"
+		;;
+	*)
+		usage "Unrecognized argument \"$1\""
+		;;
+esac
+
+# Change Internal Field Separator to just nelines
+IFS=$'\r\n'
+
+# First get the non-comment noauto lines from fstab, sanitized a bit
+ARR_MOUNTS=$(sed -e '/^.*#/d' -e '/^.*noauto/!d' -e 's/\t/ /g' /etc/fstab | tr -s " ")
+
+if [ $DO != "remote" ]; then
+	ARR_MOUNTS_LOCAL=$(echo "$ARR_MOUNTS" | sed -e '/^.*:/d' -e '/^.*bind/d' | cut -f1,2 -d" ")
+	ARR_MOUNTS_BIND=$(echo "$ARR_MOUNTS" | sed -e '/^.*:/d' -e '/^.*bind/!d' | cut -f1,2 -d" ")
+
+	for STR_MOUNT in ${ARR_MOUNTS_LOCAL}; do
+		# Local disk, make sure it is connected
+		STR_DISK=`echo "${STR_MOUNT}" | cut -f1 -d" "`
+		STR_MOUNT_POINT=`echo "${STR_MOUNT}" | cut -f2 -d" "`
+		if file ${STR_DISK} &>/dev/null ; then
+			# The disk exists, ensure it is mounted
+			mountpoint -q ${STR_MOUNT_POINT} || mount ${STR_MOUNT_POINT}
+		else
+			# The disk does not exist, unmount it
+			umount -l -f ${STR_MOUNT_POINT} &>/dev/null
+		fi
+	done
+
+	# Likely the bind mounts are using the local mounts,
+	# so after mounting local, sleep before mounting binds
+	sleep 1
+
+	for STR_MOUNT in ${ARR_MOUNTS_BIND}; do
+		# Local disk, make sure it is connected
+		STR_DISK=`echo "${STR_MOUNT}" | cut -f1 -d" "`
+		STR_MOUNT_POINT=`echo "${STR_MOUNT}" | cut -f2 -d" "`
+		if file ${STR_DISK} &>/dev/null ; then
+			# The disk exists, ensure it is mounted
+			mountpoint -q ${STR_MOUNT_POINT} || mount ${STR_MOUNT_POINT}
+		else
+			# The disk does not exist, unmount it
+			umount -l -f ${STR_MOUNT_POINT} &>/dev/null
+		fi
+	done
+
+fi
+
+if [ $DO != "local" ]; then
+	ARR_MOUNTS_REMOTE=$(echo "$ARR_MOUNTS" | sed -e '/^.*:/!d' | cut -f1,2 -d" ")
+
+	for STR_MOUNT in ${ARR_MOUNTS_REMOTE}; do
+		# Network mount, make sure the server is there
+		STR_SERVER=$(echo "${STR_MOUNT}" | cut -f1 -d":")
+		STR_MOUNT_POINT=$(echo "${STR_MOUNT}" | cut -f2 -d" ")
+		ping -c 1 "${STR_SERVER}" &>/dev/null
+		if [ $? -eq 0 ]; then
+			# The server is up, ensure the share is mounted
+			mountpoint -q ${STR_MOUNT_POINT} || mount ${STR_MOUNT_POINT}
+		else
+			# The server could not be reached, unmount the share
+			umount -l -f ${STR_MOUNT_POINT} &>/dev/null
+		fi
+	done
+fi
