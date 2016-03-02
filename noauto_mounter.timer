@@ -1,0 +1,10 @@
+[Unit]
+Description=Check fstab noauto mounts
+
+[Timer]
+#OnCalendar=*-*-* *:*:00
+OnBootSec=5sec
+OnUnitActiveSec=1min
+
+[Install]
+WantedBy=timer.target
