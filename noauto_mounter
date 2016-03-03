@@ -30,11 +30,18 @@ esac
 IFS=$'\r\n'
 
 # First get the non-comment noauto lines from fstab, sanitized a bit
-ARR_MOUNTS=$(sed -e '/^.*#/d' -e '/^.*noauto/!d' -e 's/\t/ /g' /etc/fstab | tr -s " ")
+ARR_MOUNTS=$(sed -e '/^.*#/d' \
+                 -e '/^.*noauto/!d' \
+                 -e 's/\t/ /g' /etc/fstab \
+              | tr -s " ")
 
 if [ $DO != "remote" ]; then
-	ARR_MOUNTS_LOCAL=$(echo "$ARR_MOUNTS" | sed -e '/^.*:/d' -e '/^.*bind/d' | cut -f1,2 -d" ")
-	ARR_MOUNTS_BIND=$(echo "$ARR_MOUNTS" | sed -e '/^.*:/d' -e '/^.*bind/!d' | cut -f1,2 -d" ")
+	ARR_MOUNTS_LOCAL=$(echo "$ARR_MOUNTS" \
+	                    | sed -e '/^.*:/d' -e '/^.*bind/d' \
+	                    | cut -f1,2 -d" ")
+	ARR_MOUNTS_BIND=$(echo "$ARR_MOUNTS" \
+	                   | sed -e '/^.*:/d' -e '/^.*bind/!d' \
+	                   | cut -f1,2 -d" ")
 
 	for STR_MOUNT in ${ARR_MOUNTS_LOCAL}; do
 		# Local disk, make sure it is connected
@@ -42,7 +49,8 @@ if [ $DO != "remote" ]; then
 		STR_MOUNT_POINT=`echo "${STR_MOUNT}" | cut -f2 -d" "`
 		if file ${STR_DISK} &>/dev/null ; then
 			# The disk exists, ensure it is mounted
-			mountpoint -q ${STR_MOUNT_POINT} || mount ${STR_MOUNT_POINT}
+			mountpoint -q ${STR_MOUNT_POINT} \
+			  || mount ${STR_MOUNT_POINT}
 		else
 			# The disk does not exist, unmount it
 			umount -l -f ${STR_MOUNT_POINT} &>/dev/null
@@ -59,7 +67,8 @@ if [ $DO != "remote" ]; then
 		STR_MOUNT_POINT=`echo "${STR_MOUNT}" | cut -f2 -d" "`
 		if file ${STR_DISK} &>/dev/null ; then
 			# The disk exists, ensure it is mounted
-			mountpoint -q ${STR_MOUNT_POINT} || mount ${STR_MOUNT_POINT}
+			mountpoint -q ${STR_MOUNT_POINT} \
+			  || mount ${STR_MOUNT_POINT}
 		else
 			# The disk does not exist, unmount it
 			umount -l -f ${STR_MOUNT_POINT} &>/dev/null
@@ -69,7 +78,9 @@ if [ $DO != "remote" ]; then
 fi
 
 if [ $DO != "local" ]; then
-	ARR_MOUNTS_REMOTE=$(echo "$ARR_MOUNTS" | sed -e '/^.*:/!d' | cut -f1,2 -d" ")
+	ARR_MOUNTS_REMOTE=$(echo "$ARR_MOUNTS" \
+	                     | sed -e '/^.*:/!d' \
+	                     | cut -f1,2 -d" ")
 
 	for STR_MOUNT in ${ARR_MOUNTS_REMOTE}; do
 		# Network mount, make sure the server is there
@@ -78,7 +89,8 @@ if [ $DO != "local" ]; then
 		ping -c 1 "${STR_SERVER}" &>/dev/null
 		if [ $? -eq 0 ]; then
 			# The server is up, ensure the share is mounted
-			mountpoint -q ${STR_MOUNT_POINT} || mount ${STR_MOUNT_POINT}
+			mountpoint -q ${STR_MOUNT_POINT} \
+			  || mount ${STR_MOUNT_POINT}
 		else
 			# The server could not be reached, unmount the share
 			umount -l -f ${STR_MOUNT_POINT} &>/dev/null
