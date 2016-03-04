@@ -13,9 +13,9 @@ md5sums=('SKIP')
 install='noauto_mounter.install'
 
 pkgver() {
-	cd "${srcdir}/${pkgname}-${pkgver}"
-	# Use the tag of the last commit
-	git describe --long | sed -E 's/([^-]*-g)/r\1/;s/-/./g'
+	cd "${pkgname}"
+	# Using the most recent annotated tag reachable from the last commit:
+	git describe --long | sed 's/\([^-]*-g\)/r\1/;s/-/./g'
 }
 package() {
 	cd "${srcdir}/${pkgname}-${pkgver}"
