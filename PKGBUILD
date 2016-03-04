@@ -1,6 +1,6 @@
 # Maintainer: longranger <longranger dot 406 at gmail dot com>
 pkgname="noauto_mounter"
-pkgver="0.2"
+pkgver=0.2.r2.gc957431
 pkgrel=1
 pkgdesc="auto mount local and nfs noauto fstab mounts"
 arch=('x86_64')
@@ -13,7 +13,6 @@ md5sums=('SKIP')
 install='noauto_mounter.install'
 
 pkgver() {
-	cd "${pkgname}"
 	# Using the most recent annotated tag reachable from the last commit:
 	git describe --long | sed 's/\([^-]*-g\)/r\1/;s/-/./g'
 }
