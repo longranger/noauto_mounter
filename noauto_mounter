@@ -1,46 +1,129 @@
 #!/bin/bash
 
-function usage {
-        echo "$1" 1>&2
-        echo -e "\n" Usage: `basename $0` '[local|remote]' 1>&2
-        exit
+# bash shortcut for `basename $0`
+sProg=${0##*/}
+
+usage() {
+    cat <<EOF
+Usage: 
+
+$sProg [-n] [-l|--local] [-r|--remote] [-h|--help|--usage]
+
+Options:
+	-n|               Dry run - shows what would happen, but does nothing
+	-l|--local        Only mount local disks and bind mounts
+	-r|--remote       Only mount NFS mounts
+	-h|--help|--usage Displays this help
+EOF
+	exit 0
 }
 
-# Verify argument
-if [[ $# -gt 1 ]] ; then
-	usage "Too many arguments specified."
-fi
+die () {
+	sMsg=${1:-}
+	# don't loop on ERR
+	trap '' ERR
 
-DO=$1
+	sErr="$sProg failed from $HOSTNAME to $sTargetHost"
+	echo -e "\n$sErr\n$sMsg\n" >&2
+	echo $sMsg > /tmp/${sProg}.err.msg
 
-case "$DO" in
-	"local")
-		;;
-	"remote")
-		;;
-	"")
-		DO="both"
-		;;
-	*)
-		usage "Unrecognized argument \"$1\""
-		;;
-esac
+#	if [[ -n "$sEmailAddress" ]]; then
+#		/usr/bin/mail -s "$sErr" "$sEmailAddress" < /tmp/${sProg}.err.msg
+#	fi
 
-# Change Internal Field Separator to just nelines
+	# This is a fancy shell core dumper
+	if echo $sMsg | grep -q 'Error line .* with status'; then
+		line=`echo $sMsg | sed 's/.*Error line \(.*\) with status.*/\1/'`
+		echo " DIE: Code dump:" >&2
+		nl -ba $0 | grep -3 "\b$line\b" >&2
+	fi
+
+	exit 1
+}
+
+f_mount () {
+
+	mountpoint -q "$1" && echo "# $1 already mounted" && return
+
+	if [ "$bDry" = true ] ; then
+		echo "mount $1"
+	else
+		mount "$1"
+	fi
+}
+
+f_umount () {
+
+	if [ "$bDry" = true ] ; then
+		echo "umount $i"
+	else
+		umount -l -f "$1" &>/dev/null
+	fi
+}
+
+# Initialize
+bDry=false
+strDo="both"
+# Get input
+TEMP=$(getopt --longoptions local,remote -o n,l,r -- "$@") || usage
+# getopt quotes arguments with ' We use eval to get rid of that
+eval set -- $TEMP
+
+while :
+do
+	case "$1" in
+		-h|--help|--usage)
+			usage
+			shift
+			;;
+
+		-n)
+			bDry=true
+			shift
+			;;
+
+		--local|-l)
+			strDo="local"
+			shift
+			;;
+
+		--remote|-r)
+			strDo="remote"
+			shift
+			;;
+
+		--)
+			shift
+			break
+			;;
+
+		*) 
+			echo "Internal error from getopt!"
+			exit 1
+			;;
+	esac
+done
+
+[[ $# != 0 ]] && usage
+
+# Change Internal Field Separator to just newlines
 IFS=$'\r\n'
 
-# First get the non-comment noauto lines from fstab, sanitized a bit
+# First get the non-comment noauto lines from fstab,
+# sanitized to turn whitespace into single spaces
 ARR_MOUNTS=$(sed -e '/^.*#/d' \
-                 -e '/^.*noauto/!d' \
                  -e 's/\t/ /g' /etc/fstab \
+              | awk '(index($4, "noauto") != 0)' \
               | tr -s " ")
 
-if [ $DO != "remote" ]; then
+if [ $strDo != "remote" ]; then
 	ARR_MOUNTS_LOCAL=$(echo "$ARR_MOUNTS" \
-	                    | sed -e '/^.*:/d' -e '/^.*bind/d' \
+	                    | awk '(index($3, "nfs") == 0)' \
+	                    | awk '(index($4, "bind") == 0)' \
 	                    | cut -f1,2 -d" ")
 	ARR_MOUNTS_BIND=$(echo "$ARR_MOUNTS" \
-	                   | sed -e '/^.*:/d' -e '/^.*bind/!d' \
+	                   | awk '(index($3, "nfs") == 0)' \
+	                   | awk '(index($4, "bind") != 0)' \
 	                   | cut -f1,2 -d" ")
 
 	for STR_MOUNT in ${ARR_MOUNTS_LOCAL}; do
@@ -48,17 +131,14 @@ if [ $DO != "remote" ]; then
 		STR_DISK=`echo "${STR_MOUNT}" | cut -f1 -d" "`
 		STR_MOUNT_POINT=`echo "${STR_MOUNT}" | cut -f2 -d" "`
 		if file ${STR_DISK} &>/dev/null ; then
-			# The disk exists, ensure it is mounted
-			mountpoint -q ${STR_MOUNT_POINT} \
-			  || mount ${STR_MOUNT_POINT}
+			f_mount "$STR_MOUNT_POINT"
 		else
-			# The disk does not exist, unmount it
-			umount -l -f ${STR_MOUNT_POINT} &>/dev/null
+			f_umount "$STR_MOUNT_POINT"
 		fi
 	done
 
-	# Likely the bind mounts are using the local mounts,
-	# so after mounting local, sleep before mounting binds
+	# sleep before mounting binds
+	# (ensure locals are mounted if used in binds)
 	sleep 1
 
 	for STR_MOUNT in ${ARR_MOUNTS_BIND}; do
@@ -66,20 +146,17 @@ if [ $DO != "remote" ]; then
 		STR_DISK=`echo "${STR_MOUNT}" | cut -f1 -d" "`
 		STR_MOUNT_POINT=`echo "${STR_MOUNT}" | cut -f2 -d" "`
 		if file ${STR_DISK} &>/dev/null ; then
-			# The disk exists, ensure it is mounted
-			mountpoint -q ${STR_MOUNT_POINT} \
-			  || mount ${STR_MOUNT_POINT}
+			f_mount "$STR_MOUNT_POINT"
 		else
-			# The disk does not exist, unmount it
-			umount -l -f ${STR_MOUNT_POINT} &>/dev/null
+			f_umount "$STR_MOUNT_POINT"
 		fi
 	done
 
 fi
 
-if [ $DO != "local" ]; then
+if [ $strDo != "local" ]; then
 	ARR_MOUNTS_REMOTE=$(echo "$ARR_MOUNTS" \
-	                     | sed -e '/^.*:/!d' \
+	                     | awk '(index($3, "nfs") != 0)' \
 	                     | cut -f1,2 -d" ")
 
 	for STR_MOUNT in ${ARR_MOUNTS_REMOTE}; do
@@ -88,12 +165,9 @@ if [ $DO != "local" ]; then
 		STR_MOUNT_POINT=$(echo "${STR_MOUNT}" | cut -f2 -d" ")
 		ping -c 1 "${STR_SERVER}" &>/dev/null
 		if [ $? -eq 0 ]; then
-			# The server is up, ensure the share is mounted
-			mountpoint -q ${STR_MOUNT_POINT} \
-			  || mount ${STR_MOUNT_POINT}
+			f_mount "$STR_MOUNT_POINT"
 		else
-			# The server could not be reached, unmount the share
-			umount -l -f ${STR_MOUNT_POINT} &>/dev/null
+			f_umount "$STR_MOUNT_POINT"
 		fi
 	done
 fi
