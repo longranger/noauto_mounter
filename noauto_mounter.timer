@@ -7,4 +7,4 @@ OnBootSec=5sec
 OnUnitActiveSec=1min
 
 [Install]
-WantedBy=timer.target
+WantedBy=timers.target
