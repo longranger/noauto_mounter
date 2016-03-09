@@ -43,7 +43,13 @@ die () {
 
 f_mount () {
 
-	mountpoint -q "$1" && echo "# $1 already mounted" && return
+	mountpoint -q "$1"
+	if [ $? -eq 0 ]; then
+		if [ "$bDry" = true ] ; then
+			echo "$1 already mounted"
+		fi
+		return
+	fi
 
 	if [ "$bDry" = true ] ; then
 		echo "mount $1"
@@ -55,7 +61,7 @@ f_mount () {
 f_umount () {
 
 	if [ "$bDry" = true ] ; then
-		echo "umount $i"
+		echo "umount $1"
 	else
 		umount -l -f "$1" &>/dev/null
 	fi
