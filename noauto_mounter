@@ -177,3 +177,5 @@ if [ $strDo != "local" ]; then
 		fi
 	done
 fi
+
+exit 0
